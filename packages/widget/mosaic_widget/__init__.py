@@ -2,27 +2,17 @@ from __future__ import annotations
 
 from .chart import (
     Chart,
-    Directive,
     avg_,
     bin,
     chart,
-    colorLegend,
     count,
-    crossfilter,
     dateMonthDay,
     from_,
-    highlight,
-    intersect,
-    intervalX,
-    intervalXY,
-    intervalY,
     max_,
     min_,
     ref,
-    single,
     sql,
     sum_,
-    toggleY,
 )
 
 # re-exporting the widget so past versions could still work
