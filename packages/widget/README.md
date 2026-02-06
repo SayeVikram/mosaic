@@ -6,6 +6,36 @@ A Jupyter widget for Mosaic. Given a declarative specification, will generate we
 
 Learn how to install and use the widget in the [Mosaic documentation](https://uwdata.github.io/mosaic/jupyter/).
 
+## Fluent Python API (experimental)
+
+In addition to authoring specs as raw dicts, `mosaic-widget` includes an Altair-inspired fluent API that compiles to a Mosaic spec dict:
+
+```python
+from mosaic_widget import (
+    chart,
+    from_,
+    ref,
+    dateMonthDay,
+    intervalX,
+    highlight,
+    colorLegend,
+)
+
+c = (
+    chart("weather")
+    .mark_dot(data=from_("weather", filterBy=ref("click")))
+    .encode(x=dateMonthDay("date"), y="temp_max", fill="weather", fillOpacity=0.7)
+    .properties(width=680, height=300)
+    .add_selection(colorLegend(as_="click", columns=1))
+    .add_selection(intervalX("range", brush={"fill": "none", "stroke": "#888"}))
+    .add_selection(highlight(by="range", fill="#ccc", fillOpacity=0.2))
+)
+
+spec = c.to_spec()
+widget = c.widget()  # or: c.widget(data={"weather": your_dataframe})
+widget
+```
+
 ## Developer Setup
 
 We use [uv](https://docs.astral.sh/uv/) to manage our development setup.
