@@ -1,80 +1,73 @@
-import importlib.util
 import json
-import sys
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
-# This test lives in: .../packages/schema-wrapper/test/test_full_round_trip.py
 ROOT = Path(__file__).resolve().parents[3]
 SPEC_DIR = ROOT / "specs"
 JSON_DIR = SPEC_DIR / "json"
-PYTHON_DIR = SPEC_DIR / "python-new"
-
-# Add monorepo root so specs can import `mosaic.vgplot`.
-sys.path.insert(0, str(ROOT))
-
-
-def import_module_from_path(path: Path):
-    spec = importlib.util.spec_from_file_location(path.stem, str(path))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+YAML_DIR = SPEC_DIR / "yaml"
+GENERATOR = ROOT / "tests" / "tools" / "generate_python_code.mjs"
+RUNNER = ROOT / "tests" / "tools" / "run_spec_file.py"
 
 
-def spec_to_dict(spec_obj):
-    # Support both old and new API signatures.
-    try:
-        return spec_obj.to_dict(keep_none_values=True)
-    except TypeError:
-        return spec_obj.to_dict()
+def load_json_fixture(name: str) -> dict:
+    return json.loads((JSON_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
-PYTHON_FILES = sorted(PYTHON_DIR.glob("*.py"))
-EXAMPLES = [pf.stem for pf in PYTHON_FILES if (JSON_DIR / f"{pf.stem}.json").exists()]
-
-# Known fixture drift while migrating to python-new generated specs.
-SKIP_ROUNDTRIP = {
-    "flights-10m",
-    "gaia",
-    "linear-regression-10m",
-    "moving-average",
-    "nyc-taxi-rides",
-    "observable-latency",
-    "region-tests",
-    "window-frame",
-}
+def run_subprocess(command: list[str], **kwargs) -> str:
+    completed = subprocess.run(command, check=True, capture_output=True, text=True, **kwargs)
+    return completed.stdout
 
 
-@pytest.mark.parametrize("example_name", EXAMPLES)
-def test_round_trip(example_name):
-    """
-    For each specs/json/<example_name>.json:
-      - load the JSON fixture
-      - import specs/python-new/<example_name>.py (must expose `spec`)
-      - convert spec back to JSON
-      - assert generated == original
-    """
-    if example_name in SKIP_ROUNDTRIP:
-        pytest.skip(
-            "Known python-new fixture drift; strict round-trip pending regeneration"
-        )
+def generate_python(spec_path: Path) -> str:
+    return run_subprocess(["node", str(GENERATOR), str(spec_path)], cwd=ROOT)
 
-    json_path = JSON_DIR / f"{example_name}.json"
-    assert json_path.exists(), f"Missing JSON example: {json_path}"
-    original = json.loads(json_path.read_text(encoding="utf-8"))
 
-    py_path = PYTHON_DIR / f"{example_name}.py"
-    assert py_path.exists(), f"Missing Python example: {py_path}"
+def run_generated_python(code: str, tmp_path: Path) -> dict:
+    py_file = tmp_path / "spec_gen.py"
+    py_file.write_text(code, encoding="utf-8")
 
-    module = import_module_from_path(py_path)
-    assert hasattr(module, "spec"), (
-        f"`{py_path.name}` must define a top-level `spec` variable"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+
+    stdout = run_subprocess(["python", str(RUNNER), str(py_file)], cwd=ROOT, env=env)
+    return json.loads(stdout)
+
+
+JSON_EXAMPLES = sorted(path.stem for path in JSON_DIR.glob("*.json"))
+YAML_EXAMPLES = sorted(
+    path.stem for path in YAML_DIR.glob("*.yaml") if (JSON_DIR / f"{path.stem}.json").exists()
+)
+
+
+@pytest.mark.parametrize("example_name", JSON_EXAMPLES)
+def test_json_round_trip(example_name: str, tmp_path: Path):
+    original = load_json_fixture(example_name)
+    generated = run_generated_python(
+        generate_python(JSON_DIR / f"{example_name}.json"),
+        tmp_path,
     )
-    generated = spec_to_dict(module.spec)
 
     assert generated == original, (
         f"Round-trip JSON mismatch for '{example_name}'.\n"
         f"> original:  {original}\n"
+        f"> generated: {generated}"
+    )
+
+
+@pytest.mark.parametrize("example_name", YAML_EXAMPLES)
+def test_yaml_round_trip(example_name: str, tmp_path: Path):
+    fixture = load_json_fixture(example_name)
+    generated = run_generated_python(
+        generate_python(YAML_DIR / f"{example_name}.yaml"),
+        tmp_path,
+    )
+
+    assert generated == fixture, (
+        f"Round-trip YAML mismatch for '{example_name}'.\n"
+        f"> fixture:   {fixture}\n"
         f"> generated: {generated}"
     )

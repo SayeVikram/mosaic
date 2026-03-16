@@ -49,6 +49,18 @@ jobs:
             uv.lock
             **/pyproject.toml
 
+      - name: Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build JavaScript packages
+        run: npm run build
+
       - name: Format and lint
         run: |
           uv run ruff check
