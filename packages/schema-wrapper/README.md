@@ -1,17 +1,60 @@
-# Mosaic Python API
+# Schema Wrapper (Python)
 
-## Generate the API from the JSON schama
+This package generates and tests Python wrapper classes for the Mosaic JSON schema.
 
-`uv run generate.py ../../docs/public/schema/v0.10.0.json`.
+## Prerequisites
+
+- Use Python `>=3.9`.
+- Run commands from `packages/schema-wrapper`.
+- Use `uv` to create and manage the environment.
+
+## Install Dependencies
+
+```bash
+uv sync --group dev
+```
+
+## Generate Wrapper Classes
+
+Regenerate `schema_wrapper/generated_classes.py` from the schema version pinned in `schema_wrapper/generate_schema_wrapper.py` (`SCHEMA_VERSION`):
+
+```bash
+uv run generate.py
+```
+
+Note: `generate.py` currently does not accept a schema path argument; it reads from `docs/public/schema/<SCHEMA_VERSION>.json`.
 
 ## Run Tests
 
-`uv run pytest -v`
+Run all schema-wrapper tests:
 
-## Run the ruff formatter
+```bash
+uv run --group dev pytest test/ -v
+```
 
-`uv run ruff format` and `uv run ruff check`.
+Run only the full round-trip tests:
 
-## Test notebook
+```bash
+uv run --group dev pytest test/test_full_round_trip.py -q
+```
 
-`uv run jupyter lab` and then open `example.ipynb`.
+## Lint and Format
+
+```bash
+uv run --group dev ruff check
+uv run --group dev ruff format
+```
+
+## Type Checking
+
+```bash
+uv run --group dev mypy
+```
+
+## Notebook Exploration
+
+```bash
+uv run --group dev jupyter lab
+```
+
+No example notebook is currently committed in this package; create a local notebook in this directory if you want to experiment interactively.
